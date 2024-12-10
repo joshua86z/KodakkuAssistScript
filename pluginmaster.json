@@ -36,7 +36,7 @@
       "CategoryTags": [
           "utility"
       ],
-      "DalamudApiLevel": 11,
+      "DalamudApiLevel": 10,
       "IconUrl": "https://raw.githubusercontent.com/UnknownX7/DalamudPluginRepo/master/plugins/Cammy/images/icon.png",
       "ImageUrls": [
           "https://raw.githubusercontent.com/UnknownX7/DalamudPluginRepo/master/plugins/Cammy/images/image1.png"
@@ -47,7 +47,7 @@
       "DownloadLinkTesting": "https://github.com/UnknownX7/Cammy/releases/download/v2.1.0.9/latest.zip",
       "DownloadLinkUpdate": "https://github.com/UnknownX7/Cammy/releases/download/v2.1.0.9/latest.zip",
       "DownloadCount": 25975,
-      "LastUpdate": "1731958340"
+      "LastUpdate": "1618843696"
   },
   {
     "Author": "Karlin",
