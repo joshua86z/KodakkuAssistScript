@@ -38,9 +38,9 @@
     "Punchline": "A toy",
     "AcceptsFeedback": true,
     "IconUrl": "https://raw.githubusercontent.com/Karlin-Z/DalamudPlugins/main/plugins/KodakkuAssist/icon.png",
-    "DownloadLinkInstall": "https://localhost:8080/static/latest.zip",
-    "DownloadLinkTesting": "https://localhost:8080/static/latest.zip",
-    "DownloadLinkUpdate": "https://localhost:8080/static/latest.zip",
+    "DownloadLinkInstall": "http://localhost:8080/static/latest.zip",
+    "DownloadLinkTesting": "http://localhost:8080/static/latest.zip",
+    "DownloadLinkUpdate": "http://localhost:8080/static/latest.zip",
   },
   {
     "Author": "XiYu",
