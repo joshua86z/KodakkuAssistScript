@@ -22,58 +22,22 @@ using System.Security.Cryptography;
 
 namespace MyScriptNamespace
 {
-    [ScriptType(name: "巴哈姆特绝境战", territorys: [733], guid: "48286f7d-aa04-0502-0c01-6c7aa129e4fb", version: "0.2")]
+    [ScriptType(name: "巴哈姆特绝境战", territorys: [733], guid: "48286f7d-aa04-0502-0c01-6c7aa129e4fb", version: "0.3")]
     public class 巴哈姆特绝境战
     {
         uint MyId = 0;
+
+        const float Radius = 24f;
         /// <summary>
         /// This method is called at the start of each battle reset.
         /// If this method is not defined, the program will execute an empty method.
         /// </summary>
         public void Init(ScriptAccessory accessory)
         {
-            MyId = accessory.Data.Me;
+            this.MyId = accessory.Data.Me;
             accessory.Method.MarkClear();
         }
 
-        //long unixTime = DateTimeOffset.Now.ToUnixTimeSeconds();
-
-        //[ScriptMethod(name: "热离子爆发", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9913"])]
-        //public void 热离子爆发(Event @event, ScriptAccessory accessory)
-        //{
-        //    lock (this)
-        //    {
-        //        var unixTime  = DateTimeOffset.Now.ToUnixTimeSeconds();
-        //        if (this.unixTime != unixTime)
-        //        {
-        //            this.unixTime = unixTime;
-        //            for (var i = 0; i < 8; i++)
-        //            {
-
-        //                var dp = accessory.Data.GetDefaultDrawProperties();
-        //                dp.Name = $"陨石流{i}";
-        //                dp.Scale = new(5);
-        //                dp.Owner = accessory.Data.PartyList[i];
-        //                dp.DestoryAt = 1000;
-        //                dp.Color = accessory.Data.DefaultDangerColor;
-        //                accessory.Method.SendDraw(DrawModeEnum.Default, DrawTypeEnum.Circle, dp);
-        //            }
-        //        } 
-        //    }
-        //}
-
-        //[ScriptMethod(name: "凶鸟冲", eventType: EventTypeEnum.ActionEffect, eventCondition: ["ActionId:9918"])]
-        //public void 凶鸟冲(Event @event, ScriptAccessory accessory)
-        //{
-        //    if (!ParseObjectId(@event["TargetId"], out var tid)) return;
-        //    var dp = accessory.Data.GetDefaultDrawProperties();
-        //    dp.Name = "凶鸟冲";
-        //    dp.Scale = new(4);
-        //    dp.Owner = tid;
-        //    dp.DestoryAt = 1000;
-        //    dp.Color = accessory.Data.DefaultDangerColor;
-        //    accessory.Method.SendDraw(DrawModeEnum.Default, DrawTypeEnum.Circle, dp);
-        //}
         [ScriptMethod(name: "旋风", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9898"])]
         public void 旋风(Event @event, ScriptAccessory accessory)
         {
@@ -352,29 +316,40 @@ namespace MyScriptNamespace
             }
         }
 
-        long dragonTime = DateTimeOffset.Now.ToUnixTimeSeconds();
-        Dictionary<uint, Vector3> dragons = new();
+        [ScriptMethod(name: "龙神加护", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9922"], userControl: false)]
+        public void 龙神加护(Event @event, ScriptAccessory accessory)
+        {
+            if (!ParseObjectId(@event["SourceId"], out var sid)) return;
 
-        [ScriptMethod(name: "小龙记录", eventType: EventTypeEnum.AddCombatant, eventCondition: ["DataId:regex:^(816[34567])$"])]
+            lock (this)
+            {
+                this.cauterize = 0;
+                dragons.Clear();
+            }
+        }
+
+        long dragonTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+        Dictionary<uint, int> dragons = new();
+
+        [ScriptMethod(name: "小龙记录", eventType: EventTypeEnum.AddCombatant, eventCondition: ["DataId:regex:^(816[34567])$"], userControl: false)]
         public void 小龙记录(Event @event, ScriptAccessory accessory)
         {
             if (!ParseObjectId(@event["SourceId"], out var sid)) return;
 
             lock (this)
             {
-                var now = DateTimeOffset.Now.ToUnixTimeSeconds();
-                if (now - this.dragonTime >= 1)
-                {
-                    this.dragonTime = now;
-                    dragons.Clear();
-                }
-
                 var pos = JsonConvert.DeserializeObject<Vector3>(@event["SourcePosition"]);
-                pos.Y = pos.X >= 0 ? pos.Z : (24 - pos.Z) + 100; // 场地直径是48
-
-                dragons.Add(sid, pos);
+                var dir = this.PositionTo8Dir(pos, new(0, 0, 0));
+                dragons.Add(sid, dir);
             }
         }
+
+        private int PositionTo8Dir(Vector3 point, Vector3 centre)
+        {
+            var r = Math.Round(4 - 4 * Math.Atan2(point.X - centre.X, point.Z - centre.Z) / Math.PI) % 8;
+            return (int)r;
+        }
+
 
         int cauterize = 0;
         [ScriptMethod(name: "俯冲标记", eventType: EventTypeEnum.TargetIcon, eventCondition: ["Id:0014"])]
@@ -382,10 +357,11 @@ namespace MyScriptNamespace
         {
             if (!ParseObjectId(@event["TargetId"], out var tid)) return;
 
-            List<uint> dragonList = new List<uint>();
-            IEnumerable<uint> query = from dragon in this.dragons
-                                        orderby dragon.Value.Y
-                                        select dragon.Key;
+            IEnumerable<uint> query = from kv in this.dragons
+                                      orderby kv.Value
+                                      select kv.Key;
+
+            var dragonList = new List<uint>();
             foreach (uint sid in query)
             {
                 dragonList.Add(sid);
@@ -437,10 +413,10 @@ namespace MyScriptNamespace
             dp.Scale = new(10, 45);
             dp.ScaleMode = ScaleMode.ByTime;
             dp.Owner = sid;
-            dp.DestoryAt = 5000;
+            dp.DestoryAt = 3700;
             dp.Color = accessory.Data.DefaultDangerColor;
 
-            accessory.Method.SendDraw(DrawModeEnum.Default, DrawTypeEnum.Rect, dp);
+            accessory.Method.SendDraw(DrawModeEnum.Default, DrawTypeEnum.Displacement, dp);
         }
 
         [ScriptMethod(name: "旋风冲", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9906"])]
@@ -463,12 +439,12 @@ namespace MyScriptNamespace
         {
             Task.Delay(1000).ContinueWith(t =>
             {
-                for (var i = 0; i < 8; i++)
+                foreach(var tid in accessory.Data.PartyList)
                 {
-                    var obj = accessory.Data.Objects.SearchByEntityId(accessory.Data.PartyList[i]);
+                    var obj = accessory.Data.Objects.SearchByEntityId(tid);
 
                     var dp = accessory.Data.GetDefaultDrawProperties();
-                    dp.Name = $"旋风{i}";
+                    dp.Name = $"旋风{tid}";
                     dp.Scale = new(2);
                     dp.Position = obj?.Position;
                     dp.DestoryAt = 2000;
@@ -526,7 +502,7 @@ namespace MyScriptNamespace
 
         bool blackfireTrio = false;
 
-        [ScriptMethod(name: "黑炎的三重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9955"])]
+        [ScriptMethod(name: "黑炎的三重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9955"], userControl: false)]
         public void 黑炎的三重奏(Event @event, ScriptAccessory accessory)
         {
             this.blackfireTrio = true;
@@ -549,7 +525,7 @@ namespace MyScriptNamespace
 
                 var dp = accessory.Data.GetDefaultDrawProperties();
                 dp.Name = "奈尔位置";
-                dp.Scale = new(1.5f, 24);
+                dp.Scale = new(1.5f, Radius);
                 dp.ScaleMode |= ScaleMode.YByDistance;
                 dp.Color = accessory.Data.DefaultSafeColor;
                 dp.Owner = MyId;
@@ -620,7 +596,7 @@ namespace MyScriptNamespace
             }
         }
 
-        [ScriptMethod(name: "以太失控", eventType: EventTypeEnum.ActionEffect, eventCondition: ["ActionId:9905"])]
+        [ScriptMethod(name: "以太失控", eventType: EventTypeEnum.ActionEffect, eventCondition: ["ActionId:9905"], userControl: false)]
         public void 以太失控(Event @event, ScriptAccessory accessory)
         {
             if (!ParseObjectId(@event["TargetId"], out var tid)) return;
@@ -639,7 +615,7 @@ namespace MyScriptNamespace
 
         bool heavensfallTrio = false;
 
-        [ScriptMethod(name: "天地的三重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9957"])]
+        [ScriptMethod(name: "天地的三重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9957"], userControl: false)]
         public void 天地的三重奏(Event @event, ScriptAccessory accessory)
         {
             this.heavensfallTrio = true;
@@ -681,7 +657,7 @@ namespace MyScriptNamespace
                     }
 
                     var myIndex = 0;
-                    switch (accessory.Data.PartyList.ToList().IndexOf(MyId))
+                    switch (accessory.Data.PartyList.ToList().IndexOf(accessory.Data.Me))
                     {
                         case 0:
                             myIndex = 7; break;
@@ -703,10 +679,10 @@ namespace MyScriptNamespace
 
                     var dp = accessory.Data.GetDefaultDrawProperties();
                     dp.Name = $"天地塔{sid}";
-                    dp.Scale = new(1.5f, 48);
+                    dp.Scale = new(1.5f, Radius * 2);
                     dp.ScaleMode |= ScaleMode.YByDistance;
                     dp.Position = towers[tmp[myIndex]];
-                    dp.TargetObject = MyId;
+                    dp.TargetObject = accessory.Data.Me;
                     dp.DestoryAt = 7000;
                     dp.Color = accessory.Data.DefaultSafeColor;
                     accessory.Method.SendDraw(DrawModeEnum.Imgui, DrawTypeEnum.Displacement, dp);
@@ -724,7 +700,7 @@ namespace MyScriptNamespace
             dp.Scale = new(4);
             dp.ScaleMode = ScaleMode.ByTime;
             dp.Position = new(0, 0, 0);
-            dp.DestoryAt = 5000;
+            dp.DestoryAt = 4000;
             dp.Color = accessory.Data.DefaultDangerColor;
             accessory.Method.SendDraw(DrawModeEnum.Default, DrawTypeEnum.Circle, dp);
 
@@ -745,7 +721,7 @@ namespace MyScriptNamespace
             return (int)r;
         }
 
-        [ScriptMethod(name: "群龙的八重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9959"])]
+        [ScriptMethod(name: "群龙的八重奏", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9959"], userControl: false)]
         public void 群龙的八重奏(Event @event, ScriptAccessory accessory)
         {
             this.grandOctetIcons.Clear();
@@ -772,7 +748,7 @@ namespace MyScriptNamespace
                     {
                         var dp = accessory.Data.GetDefaultDrawProperties();
                         dp.Name = $"双塔尼亚";
-                        dp.Scale = new(1.5f, 24);
+                        dp.Scale = new(1.5f, Radius);
                         dp.ScaleMode |= ScaleMode.YByDistance;
                         dp.Owner = MyId;
                         dp.TargetObject = Twintania;
@@ -786,7 +762,7 @@ namespace MyScriptNamespace
 
         uint Twintania = 0;
 
-        [ScriptMethod(name: "双塔尼亚位置", eventType: EventTypeEnum.SetObjPos, eventCondition: ["SourceDataId:8159"])]
+        [ScriptMethod(name: "双塔尼亚位置", eventType: EventTypeEnum.SetObjPos, eventCondition: ["SourceDataId:8159"], UserControl = false)]
         public void 双塔尼亚位置(Event @event, ScriptAccessory accessory)
         {
             if (!ParseObjectId(@event["SourceId"], out this.Twintania)) return;
@@ -938,7 +914,7 @@ namespace MyScriptNamespace
             }
         }
 
-        long exaflareTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+        long exaflareTime = 0;
 
         [ScriptMethod(name: "百京核爆", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:9968"])]
         public void 百京核爆(Event @event, ScriptAccessory accessory)
@@ -948,22 +924,21 @@ namespace MyScriptNamespace
             lock (this)
             {
                 var timestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-                if (timestamp - this.exaflareTime > 10)
+                if (timestamp - this.exaflareTime > 10 && Math.Sqrt(pos.X * pos.X + pos.Z * pos.Z) <= Radius)
                 {
-                    this.exaflareTime = timestamp;
-
                     var dp = accessory.Data.GetDefaultDrawProperties();
                     dp.Name = "百京核爆";
-                    dp.Scale = new(1.5f, 24);
+                    dp.Scale = new(1.5f, Radius);
                     dp.ScaleMode |= ScaleMode.YByDistance;
                     dp.Color = accessory.Data.DefaultSafeColor;
                     dp.Owner = MyId;
                     dp.TargetPosition = pos;
-                    //dp.Delay = 1000;
                     dp.DestoryAt = 3000;
 
                     accessory.Method.SendDraw(DrawModeEnum.Imgui, DrawTypeEnum.Displacement, dp);
                 }
+
+                this.exaflareTime = timestamp;
             }
         }
         private static bool ParseObjectId(string? idStr, out uint id)
