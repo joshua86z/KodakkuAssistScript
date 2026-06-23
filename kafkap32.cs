@@ -1,10 +1,11 @@
-
 using KodakkuAssist.Module.GameEvent;
 using KodakkuAssist.Module.GameOperate;
 using KodakkuAssist.Script;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.Numerics;
-
+using System.Threading.Tasks;
 
 
 namespace MyScripts2
@@ -502,5 +503,3 @@ namespace MyScripts2
         public static uint DataId(this Event evt) => JsonConvert.DeserializeObject<uint>(evt["DataId"]);
     }
 }
-
-
