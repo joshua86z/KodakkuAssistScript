@@ -1,37 +1,16 @@
-using Dalamud.Utility.Numerics;
-using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using FFXIVClientStructs.STD.Helper;
-using KodakkuAssist.Data;
-using KodakkuAssist.Module.Draw;
+
 using KodakkuAssist.Module.GameEvent;
 using KodakkuAssist.Module.GameOperate;
 using KodakkuAssist.Script;
-using Lumina.Data.Parsing;
-using MyScriptNamespace;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
-using System.Runtime.Intrinsics.Arm;
-using System.Security.Cryptography;
-using System.Threading;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 
 
 namespace MyScripts2
 {
 
-    [ScriptType(name: "妖星P3黑洞TTS",
+    [ScriptType(name: "妖星P3黑洞",
          territorys: [1363],
         //territorys: [],
         guid: "12345678-1234-1234-1234-123456789012",
@@ -41,57 +20,185 @@ namespace MyScripts2
 
     public class MyScripts2
     {
-
-
         public void Init(ScriptAccessory accessory)
         {
-            P3二运 = false;
+            黑洞轮次 = 0;
         }
 
-        bool P3二运 = false;
-        int 黑洞轮次 = 1;
+        int 黑洞轮次 = 0;
         int 黑洞连线序号 = 0;
-
 
         private static Dictionary<MarkType, uint> 目标标记 = new Dictionary<MarkType, uint>();
         private static Dictionary<uint, uint> 黑洞记录表 = new Dictionary<uint, uint>();
 
-        [ScriptMethod(name: "黑洞准备", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:50546"], userControl: false)]
-
-        public async void 黑洞准备(Event @event, ScriptAccessory accessory)
+        [ScriptMethod(name: "地震", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:50546"], userControl: false)]
+        public async void 地震(Event @event, ScriptAccessory accessory)
         {
             if (string.Equals(@event["SourceId"], "00000000")) return;
+            if (黑洞轮次 != 0) return;
 
-            P3二运 = true;
-            int 黑洞轮次 = 1;
-            int 黑洞连线序号 = 0;
+            黑洞轮次 = 1;
+            黑洞连线序号 = 0;
             目标标记.Clear();
             黑洞记录表.Clear();
+
+            accessory.Method.SendChat($"/e 地震");
         }
 
-        [ScriptMethod(name: "目标标记收集", eventType: EventTypeEnum.Marker, eventCondition: ["Operate:Add", "Id:regex:^(0[123467])$"], userControl: false)]
-        public void 目标标记收集(Event ev, ScriptAccessory sa)
+        [ScriptMethod(name: "目标标记收集", eventType: EventTypeEnum.Marker, eventCondition: ["Operate:Add"], userControl: false)]
+        public void 目标标记收集(Event @event, ScriptAccessory sa)
         {
-            if (!P3二运) return;
+            if (string.Equals(@event["SourceId"], "00000000")) return;
+            if (黑洞轮次 < 1) return;
+
+            var tid = @event.TargetId();
+            uint mark = 0;
 
             lock (目标标记)
             {
-                var mark = ev.Id();
+                if (@event["Id"] == "08") mark = 8;
+                else if (@event["Id"] == "09") mark = 9;
+                else { mark = @event.Id(); }
 
-                var tid = ev.TargetId();
-                var tidx = sa.Data.PartyList.IndexOf(tid);
+                sa.Method.SendChat($"/e 收集目标标记{(MarkType)mark}, mark = {mark},  str = {@event["Id"]}");
+
+                //var tidx = sa.Data.PartyList.IndexOf(tid);
 
                 目标标记.Add((MarkType)mark, tid);
-
-                if (目标标记.Count != 8) return;
-                sa.Method.SendChat($"/e 妖星接线提示记录完毕。");
             }
+
+            if (tid != sa.Data.Me) return;
+
+            switch ((MarkType)mark)
+            {
+                case MarkType.Attack1:
+                    this.提示二连(sa, "第一轮接2根线, 第二轮接1根线");
+                    break;
+                case MarkType.Attack2:
+                    this.提示二连(sa, "第一轮先接1根线, 第二轮接1根线");
+                    break;
+                case MarkType.Attack3:
+                    this.提示二连(sa, " 第二轮接1根线");
+                    break;
+                case MarkType.Bind1:
+                    this.提示二连(sa, "第二轮接攻击1的线, 第三轮接1根线");
+                    break;
+                case MarkType.Bind2:
+                    this.提示二连(sa, "第二轮接攻击2的线, 第三轮接1根线");
+                    break;
+                case MarkType.Bind3:
+                    this.提示二连(sa, "第三轮接1根线");
+                    break;
+                case MarkType.Stop1:
+                    this.提示二连(sa, "第三轮接锁链1的线, 第四轮接1根线");
+                    break;
+                case MarkType.Stop2:
+                    this.提示二连(sa, "第三轮接锁链2的线, 第四轮接两根线");
+                    break;
+            }
+        }
+
+        [ScriptMethod(name: "黑洞", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:47867"])]
+
+        public async void 黑洞(Event @event, ScriptAccessory accessory)
+        {
+            if (string.Equals(@event["SourceId"], "00000000")) return;
+
+            if (目标标记.TryGetValue(MarkType.Attack2, out var attack2) && attack2 == accessory.Data.Me)
+            {
+                var text = "准备接线";
+                this.提示二连(accessory, text);
+            }
+        }
+
+        [ScriptMethod(name: "诅咒敕令", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:47873"])]
+        public async void 诅咒敕令(Event @event, ScriptAccessory accessory)
+        {
+            if (string.Equals(@event["SourceId"], "00000000")) return;
+            if (黑洞轮次 != 1) return;
+
+            黑洞轮次 = 2;
+            黑洞连线序号 = 0;
+            黑洞记录表.Clear();
+
+            var text = "";
+
+            if (目标标记.TryGetValue(MarkType.Attack1, out var attack1) && attack1 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+            if (目标标记.TryGetValue(MarkType.Attack2, out var attack2) && attack2 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+            if (目标标记.TryGetValue(MarkType.Attack3, out var attack3) && attack3 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+
+            accessory.Method.SendChat($"/e 诅咒敕令");
+
+            await Task.Delay(5000);
+            if (text != "") this.提示二连(accessory, text);
+        }
+
+        [ScriptMethod(name: "本色出演的我", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:47854"])]
+        public async void 本色出演的我(Event @event, ScriptAccessory accessory)
+        {
+            if (string.Equals(@event["SourceId"], "00000000")) return;
+            if (黑洞轮次 != 2) return;
+
+            黑洞轮次 = 3;
+            黑洞连线序号 = 0;
+            黑洞记录表.Clear();
+
+            var text = "";
+
+            if (目标标记.TryGetValue(MarkType.Bind1, out var bind1) && bind1 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+            if (目标标记.TryGetValue(MarkType.Bind2, out var bind2) && bind2 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+            if (目标标记.TryGetValue(MarkType.Bind3, out var bind3) && bind3 == accessory.Data.Me)
+            {
+                text = "准备接线";
+            }
+
+            accessory.Method.SendChat($"/e 本色出演的我");
+
+            await Task.Delay(14000);
+            if (text != "") this.提示二连(accessory, text);
+        }
+
+        [ScriptMethod(name: "经纬聚爆", eventType: EventTypeEnum.StartCasting, eventCondition: ["ActionId:regex:^(47869|47870)$"])]
+        public async void 经纬聚爆(Event @event, ScriptAccessory accessory)
+        {
+            if (string.Equals(@event["SourceId"], "00000000")) return;
+            if (黑洞轮次 != 3) return;
+
+            黑洞轮次 = 4;
+            黑洞连线序号 = 0;
+            黑洞记录表.Clear();
+
+            var text = "";
+
+            if (目标标记.TryGetValue(MarkType.Stop2, out var stop2) && stop2 == accessory.Data.Me)
+            {
+                text = "准备接2根线";
+            }
+
+            await Task.Delay(8000);
+            if (text != "") this.提示二连(accessory, text);
         }
 
         [ScriptMethod(name: "黑洞连线第一轮", eventType: EventTypeEnum.Tether, eventCondition: ["Id:0054"])]
         public async void 黑洞连线第一轮(Event @event, ScriptAccessory accessory)
         {
             if (string.Equals(@event["SourceId"], "00000000")) return;
+
             if (黑洞轮次 != 1) return;
 
             var sId = @event.SourceId();
@@ -109,13 +216,13 @@ namespace MyScripts2
                         if (目标标记.TryGetValue(MarkType.Attack2, out var attack2) && attack2 == accessory.Data.Me)
                         {
                             var text = "接线接线";
-                            this.提示三连(accessory, text);
+                            this.提示TTS加文字(accessory, text);
                         }
 
                         if (目标标记.TryGetValue(MarkType.Attack1, out var attack1) && attack1 == accessory.Data.Me)
                         {
                             var text = "准备接2线3线";
-                            this.提示三连(accessory, text);
+                            this.提示二连(accessory, text);
                         }
 
                         break;
@@ -124,7 +231,7 @@ namespace MyScripts2
                         if (目标标记.TryGetValue(MarkType.Attack1, out var attack1_1) && attack1_1 == accessory.Data.Me)
                         {
                             var text = "接线接线";
-                            this.提示三连(accessory, text);
+                            this.提示TTS加文字(accessory, text);
                         }
 
                         break;
@@ -134,18 +241,13 @@ namespace MyScripts2
                         break;
                 }
 
-                if (黑洞连线序号 % 3 == 0)
-                {
-                    黑洞连线序号 = 0;
-                    黑洞轮次++;
-                }
-            
         }
 
         [ScriptMethod(name: "黑洞连线第二轮", eventType: EventTypeEnum.Tether, eventCondition: ["Id:0054"])]
         public async void 黑洞连线第二轮(Event @event, ScriptAccessory accessory)
         {
             if (string.Equals(@event["SourceId"], "00000000")) return;
+
             if (黑洞轮次 != 2) return;
 
             var sId = @event.SourceId();
@@ -155,25 +257,25 @@ namespace MyScripts2
                 黑洞记录表.Add(sId, @event.TargetId());
 
                 黑洞连线序号++;
-
             }
+
             switch (黑洞连线序号)
             {
                 case 1:
                     if (目标标记.TryGetValue(MarkType.Attack1, out var pId) && pId == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     if (目标标记.TryGetValue(MarkType.Bind1, out var bind1) && bind1 == accessory.Data.Me)
                     {
                         var text = "准备接攻击1的线";
-                        this.提示三连(accessory, text);
+                        this.提示二连(accessory, text);
 
-                        await Task.Delay(5000);
+                        await Task.Delay(7000);
                         var text2 = "接攻击1的线";
-                        this.提示三连(accessory, text2);
+                        this.提示TTS加文字(accessory, text2);
                     }
 
                     break;
@@ -182,18 +284,18 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Attack2, out var attack2) && attack2 == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     if (目标标记.TryGetValue(MarkType.Bind2, out var bind2) && bind2 == accessory.Data.Me)
                     {
                         await Task.Delay(5000);
                         var text = "准备接攻击2的线";
-                        this.提示三连(accessory, text);
+                        this.提示二连(accessory, text);
 
                         await Task.Delay(5000);
                         var text2 = "接攻击2的线";
-                        this.提示三连(accessory, text2);
+                        this.提示TTS加文字(accessory, text2);
                     }
 
                     break;
@@ -202,24 +304,25 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Attack3, out var attack3) && attack3 == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     break;
             }
 
-            if (黑洞连线序号 % 3 == 0)
-            {
-                黑洞连线序号 = 0;
-                黑洞轮次++;
-                黑洞记录表.Clear();
-            }
+            //if (黑洞连线序号 % 3 == 0)
+            //{
+            //    黑洞连线序号 = 0;
+            //    黑洞轮次++;
+            //    黑洞记录表.Clear();
+            //}
         }
 
         [ScriptMethod(name: "黑洞连线第三轮", eventType: EventTypeEnum.Tether, eventCondition: ["Id:0054"])]
         public async void 黑洞连线第三轮(Event @event, ScriptAccessory accessory)
         {
             if (string.Equals(@event["SourceId"], "00000000")) return;
+
             if (黑洞轮次 != 3) return;
 
             var sId = @event.SourceId();
@@ -236,17 +339,17 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Bind1, out var bind1) && bind1 == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     if (目标标记.TryGetValue(MarkType.Stop1, out var stop1) && stop1 == accessory.Data.Me)
                     {
                         var text = "准备接锁链1的线";
-                        this.提示三连(accessory, text);
+                        this.提示二连(accessory, text);
 
                         await Task.Delay(5000);
                         var text2 = "接锁链1的线";
-                        this.提示三连(accessory, text2);
+                        this.提示TTS加文字(accessory, text2);
                     }
 
                     break;
@@ -255,18 +358,18 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Bind2, out var bind2) && bind2 == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     if (目标标记.TryGetValue(MarkType.Stop2, out var stop2) && stop2 == accessory.Data.Me)
                     {
                         await Task.Delay(5000);
                         var text = "准备接锁链2的线";
-                        this.提示三连(accessory, text);
+                        this.提示二连(accessory, text);
 
                         await Task.Delay(5000);
                         var text2 = "接锁链2的线";
-                        this.提示三连(accessory, text2);
+                        this.提示TTS加文字(accessory, text2);
                     }
 
                     break;
@@ -275,18 +378,18 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Bind3, out var bind3) && bind3 == accessory.Data.Me)
                     {
                         var text = "接线接线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     break;
             }
 
-            if (黑洞连线序号 % 3 == 0)
-            {
-                黑洞连线序号 = 0;
-                黑洞轮次++;
-                黑洞记录表.Clear();
-            }
+            //if (黑洞连线序号 % 3 == 0)
+            //{
+            //    黑洞连线序号 = 0;
+            //    黑洞轮次++;
+            //    黑洞记录表.Clear();
+            //}
         }
 
         [ScriptMethod(name: "黑洞连线第四轮", eventType: EventTypeEnum.Tether, eventCondition: ["Id:0054"])]
@@ -309,14 +412,14 @@ namespace MyScripts2
                 case 1:
                     if (目标标记.TryGetValue(MarkType.Stop2, out var stop2) && stop2 == accessory.Data.Me)
                     {
-                        var text = "接线接两根";
-                        this.提示三连(accessory, text);
+                        var text = "接线接线";
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     if (目标标记.TryGetValue(MarkType.Stop1, out var stop1) && stop1 == accessory.Data.Me)
                     {
                         var text = "准备接第三根线";
-                        this.提示三连(accessory, text);
+                        this.提示二连(accessory, text);
                     }
 
                     break;
@@ -333,24 +436,26 @@ namespace MyScripts2
                     if (目标标记.TryGetValue(MarkType.Stop1, out var stop_1) && stop_1 == accessory.Data.Me)
                     {
                         var text = "接第三根线";
-                        this.提示三连(accessory, text);
+                        this.提示TTS加文字(accessory, text);
                     }
 
                     break;
             }
-
         }
 
- 
-        private void 提示三连(ScriptAccessory accessory, string text)
+
+        private void 提示二连(ScriptAccessory accessory, string text)
         {
             accessory.Method.SendChat($"/e {text}");
             accessory.Method.TTS($"{text}");
-            accessory.Method.TextInfo(text, 3000);
         }
 
-
-
+        private void 提示TTS加文字(ScriptAccessory accessory, string text)
+        {
+            accessory.Method.SendChat($"/e {text}");
+            accessory.Method.TTS($"{text}");
+            accessory.Method.TextInfo(text, 5000);
+        }
 
     }
 
